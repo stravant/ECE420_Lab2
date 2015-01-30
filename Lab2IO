@@ -1,0 +1,74 @@
+int Loaddata (int* A, int n)
+{
+	/*
+	Load the matrix stored in the file "data_input".
+	
+	A is the pointer to the destination matrix. n is the size of the matrix to be stored in the array A[].
+	The function will first compare the n to the size stored in the file "data_input" and will exit if they don't match. Then the matrix in the file "data_input" is loaded into the array A[].
+	The element in the i th row and j th column will be mapped to A[n*i+j].
+	*/
+
+	FILE* ip;
+        int i,j,temp;
+        if ((ip=fopen("data_input","r"))==NULL)
+        {
+                printf("Error opening the input data.\n");
+                return 1;
+        }
+        fscanf(ip,"%d\n\n",&temp);
+	if (temp!=n)
+	{
+                printf("City count does not match the data!\n");
+                return 2;
+        }
+
+        for (i=0;i<n;i++)
+                for (j=0;j<n;j++)
+                        fscanf(ip,"%d\t",A+n*i+j);
+        fclose(ip);
+        return 0;
+	
+}
+
+int Savedata(int* A, int n)
+{
+	/*
+	Save the matrix stored in array A[] into the file "data_output".
+	
+	A is the pointer to the array storing the matrix. n is the size of the matrix.
+	The function will first write n into the file "data_output". Then it will write the elements in A[].
+	A[I] will be mapped as the element in the floor(I/n) th row and the I%n th column of a matrix, i.e. A[n*i+j] will be mapped as the elment in the i th row and j th column of a matrix.
+	*/
+	FILE* op;
+        int i,j;
+        if ((op=fopen("data_output","w"))==NULL)
+        {
+                printf("Error opening the file.\n");
+                return 1;
+        }
+        fprintf(op,"%d\n\n",n);
+        for (i=0;i<n;i++)
+	{
+                for (j=0;j<n;j++)
+                        fprintf(op,"%d\t",A[n*i+j]);
+		fprintf(op,"\n");
+	}
+        fclose(op);
+        
+	return 0;
+}
+
+int PrintMat(int* A, int n)
+{
+	/*
+	Print the matrix stored in array A[] on the screen.
+	*/
+	int i,j;
+	for (i=0;i<n;i++)
+	{
+		for (j=0;j<n;j++)
+			printf("%d\t", A[i*n+j]);
+		printf("\n");
+	}
+	return 0;
+}
