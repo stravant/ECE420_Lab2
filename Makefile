@@ -1,7 +1,7 @@
 
 CFLAGS += -Wall -Werror -g
 
-CITYCOUNT ?= 10
+CITYCOUNT ?= 8
 THREADCOUNT ?= 1
   
 #0 -> Synchronous, 1 -> Asynchronous
@@ -28,6 +28,15 @@ maintest: all
 	./main 4 1
 	./main 8 1
 	./serialtester
+
+fixtest: all
+	./datagen $(CITYCOUNT)
+	./main 1 1
+	./serialtester
+#	./main 2 1
+#	./serialtester
+#	./main 4 1
+#	./serialtester
 
 clean:
 	rm -rf main
