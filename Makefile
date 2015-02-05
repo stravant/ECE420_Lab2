@@ -1,7 +1,8 @@
 
+CC = clang
 CFLAGS += -Wall -Werror -g
 
-CITYCOUNT ?= 8
+CITYCOUNT ?= 128
 THREADCOUNT ?= 1
   
 #0 -> Synchronous, 1 -> Asynchronous

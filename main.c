@@ -24,6 +24,15 @@ int is_async = 0;
 pthread_t *thread_array;
 int thread_count;
 
+/* Execution start */
+double start_time;
+
+double elapsed() {
+	double end;
+	GET_TIME(end);
+	return 1000*(end - start_time);
+}
+
 /* Shared function to create and join threads */
 void create_and_join_threads(void *(*thread_func)(void*)) {
 	/* Start all of the threads */
@@ -76,7 +85,7 @@ sem_t *WS_sem;
 void dump(int k, const char *format, ...) {
 	char name_buffer[20];
 	snprintf(name_buffer, 20, "thlog_%d", k);
-	FILE *f = fopen(name_buffer, 'w');
+	FILE *f = fopen(name_buffer, "a");
 
 	va_list args;
 	va_start(args, format);
@@ -84,6 +93,19 @@ void dump(int k, const char *format, ...) {
 	va_end(args);
 
 	fclose(f);
+}
+
+void dump_buf(int k, int buf) {
+	char buffer[(N*(N+3))*10];
+	char *output = buffer;
+	for (int i = 0; i < N; ++i) {
+		for (int j = 0; j < N; ++j) {
+			output += sprintf(output, "%5d ", WS[buf][i*N + j]);
+		}
+		output += sprintf(output, "\n");
+	}
+	output += sprintf(output, "\n");
+	dump(k, "%s", buffer);
 }
 
 void cleardump() {
@@ -106,25 +128,25 @@ void *fw_striped_thread(void *rank_void) {
 		int *src_W = WS[src];
 		int *dst_W = WS[dst];
 
-		double d;
-		GET_TIME(d);
-		dump(k, "Start doing k=%d at %f", k, d);
+		//dump(k, "Start doing k=%d at %f [src %d -> dst %d]\n", 
+		//	k, elapsed(), src, dst);
 
-		/* Do an initial wait on our sem, since we need to be one row behind
-		 * the last K's thread. Also, k = 0 has no dependency, thus no wait. */
-		if (k > 0) {
+		/* Need to wait for k+1 rows to be completed in the source
+		 * before we can proceed. */
+		for (int dep_rows = 0; dep_rows < (k+1); ++dep_rows) {
 			sem_wait(&WS_sem[src]);
 		}
 
 		/* Now loop over the slices */
 		for (int slice = 0; slice < N; ++slice) {
-			/* Wait for a row to be ready in the last k. Don't do this for the
-			 * last slice, since we are already one slice ahead due to the
-			 * initial wait. 
-			 * Also, k = 0 has no dependency, thus no wait. */
-			if (k > 0 && slice != (N-1)) {
+			/* We also need to wait for the additional rows after the
+			 * main row or col = k dependency */
+			if (slice > k && k > 0) {			
 				sem_wait(&WS_sem[src]);
 			}
+
+			//dump(k, "Doing slice s=%d at %f\n", slice, elapsed());
+			//dump_buf(k, dst);
 
 			/* Now, for each element in the slice */
 			for (int i = slice+1; i < N; ++i) {
@@ -149,12 +171,17 @@ void *fw_striped_thread(void *rank_void) {
 			/* Notify the next K that a slice was completed  */
 			sem_post(&WS_sem[dst]);
 		}
+
+		//dump(k, "Finished k=%d at %f:\n", k, elapsed());
+		//dump_buf(k, dst);
 	}
 
 	pthread_exit(0);
 }
 
 void floyd_warshall_striped() {
+	//cleardump();
+
 	/* Set up the memory */
 	WS = malloc(N*N*(thread_count+1)*sizeof(int));
 	WS_sem = malloc((thread_count+1)*sizeof(sem_t));
@@ -163,7 +190,8 @@ void floyd_warshall_striped() {
 	memcpy(WS[0], W, N*N*sizeof(int));
 
 	/* Init the semaphores */
-	for (int i = 0; i < (thread_count+1); ++i) {
+	sem_init(&WS_sem[0], 0, 1); /* Initial value = 1 */
+	for (int i = 1; i < (thread_count+1); ++i) {
 		sem_init(&WS_sem[i], 0, 0); /* Initial value = 0 */
 	}
 
@@ -309,8 +337,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Start time */
-	double start, end;
-	GET_TIME(start);
+	GET_TIME(start_time);
 
 	// if (thread_count == 1) {
 	// 	floyd_warshall_single();
@@ -323,6 +350,7 @@ int main(int argc, char *argv[]) {
 	// }
 
 	/* End time */
+	double end;
 	GET_TIME(end);
 
 	/* Print perf */
@@ -331,7 +359,7 @@ int main(int argc, char *argv[]) {
 	} else {
 		printf("Synchronous");
 	}
-	printf(" (threads=%d): %fs\n", thread_count, (end - start));
+	printf(" (threads=%d): %fs\n", thread_count, (end - start_time));
 	
 	/* Save output */
 	if (Savedata(W, N)) {
