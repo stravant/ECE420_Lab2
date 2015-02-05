@@ -78,134 +78,137 @@ void floyd_warshall_single() {
 	}
 }
 
-/* Interesting implementation */
-int (*WS)[N*N];
-sem_t *WS_sem;
+// /* Interesting implementation */
+// int (*WS)[N*N];
+// sem_t *WS_sem;
 
-void dump(int k, const char *format, ...) {
-	char name_buffer[20];
-	snprintf(name_buffer, 20, "thlog_%d", k);
-	FILE *f = fopen(name_buffer, "a");
+// void dump(int k, const char *format, ...) {
+// 	char name_buffer[20];
+// 	snprintf(name_buffer, 20, "thlog_%d", k);
+// 	FILE *f = fopen(name_buffer, "a");
 
-	va_list args;
-	va_start(args, format);
-	vfprintf(f, format, args);
-	va_end(args);
+// 	va_list args;
+// 	va_start(args, format);
+// 	vfprintf(f, format, args);
+// 	va_end(args);
 
-	fclose(f);
-}
+// 	fclose(f);
+// }
 
-void dump_buf(int k, int buf) {
-	char buffer[(N*(N+3))*10];
-	char *output = buffer;
-	for (int i = 0; i < N; ++i) {
-		for (int j = 0; j < N; ++j) {
-			output += sprintf(output, "%5d ", WS[buf][i*N + j]);
-		}
-		output += sprintf(output, "\n");
-	}
-	output += sprintf(output, "\n");
-	dump(k, "%s", buffer);
-}
+// void dump_buf(int k, int buf) {
+// 	char buffer[(N*(N+3))*10];
+// 	char *output = buffer;
+// 	for (int i = 0; i < N; ++i) {
+// 		for (int j = 0; j < N; ++j) {
+// 			output += sprintf(output, "%5d ", WS[buf][i*N + j]);
+// 		}
+// 		output += sprintf(output, "\n");
+// 	}
+// 	output += sprintf(output, "\n");
+// 	dump(k, "%s", buffer);
+// }
 
-void cleardump() {
-	for (int i = 0; i < N; ++i) {
-		char name_buffer[20];
-		snprintf(name_buffer, 20, "thlog_%d", i);
-		remove(name_buffer);
-	}
-}
+// void cleardump() {
+// 	for (int i = 0; i < N; ++i) {
+// 		char name_buffer[20];
+// 		snprintf(name_buffer, 20, "thlog_%d", i);
+// 		remove(name_buffer);
+// 	}
+// }
 
-void *fw_striped_thread(void *rank_void) {
-	int rank = (intptr_t)rank_void;
+// void *fw_striped_thread(void *rank_void) {
+// 	int rank = (intptr_t)rank_void;
 
-	/* For each K that we are processing */
-	for (int k = rank; k < N; k += thread_count) {
-		/* Figure out where our data source and target are in the WS ring
-		 * buffer. */
-		int src = (k)   % (thread_count + 1);
-		int dst = (k+1) % (thread_count + 1);
-		int *src_W = WS[src];
-		int *dst_W = WS[dst];
+// 	/* For each K that we are processing */
+// 	for (int k = rank; k < N; k += thread_count) {
+// 		/* Figure out where our data source and target are in the WS ring
+// 		 * buffer. */
+// 		int src = (k)   % (thread_count + 1);
+// 		int dst = (k+1) % (thread_count + 1);
+// 		int *src_W = WS[src];
+// 		int *dst_W = WS[dst];
 
-		//dump(k, "Start doing k=%d at %f [src %d -> dst %d]\n", 
-		//	k, elapsed(), src, dst);
+// 		//dump(k, "Start doing k=%d at %f [src %d -> dst %d]\n", 
+// 		//	k, elapsed(), src, dst);
 
-		/* Need to wait for k+1 rows to be completed in the source
-		 * before we can proceed. */
-		for (int dep_rows = 0; dep_rows < (k+1); ++dep_rows) {
-			sem_wait(&WS_sem[src]);
-		}
+// 		/* Need to wait for k+1 rows to be completed in the source
+// 		 * before we can proceed. */
+// 		for (int dep_rows = 0; dep_rows < (k+1); ++dep_rows) {
+// 			sem_wait(&WS_sem[src]);
+// 		}
 
-		/* Now loop over the slices */
-		for (int slice = 0; slice < N; ++slice) {
-			/* We also need to wait for the additional rows after the
-			 * main row or col = k dependency */
-			if (slice > k && k > 0) {			
-				sem_wait(&WS_sem[src]);
-			}
+// 		/* Now loop over the slices */
+// 		for (int slice = 0; slice < N; ++slice) {
+// 			/* We also need to wait for the additional rows after the
+// 			 * main row or col = k dependency */
+// 			if (slice > k && k > 0) {			
+// 				sem_wait(&WS_sem[src]);
+// 			}
 
-			//dump(k, "Doing slice s=%d at %f\n", slice, elapsed());
-			//dump_buf(k, dst);
+// 			//dump(k, "Doing slice s=%d at %f\n", slice, elapsed());
+// 			//dump_buf(k, dst);
 
-			/* Now, for each element in the slice */
-			for (int i = slice+1; i < N; ++i) {
-				/* Coord = (i, slice) */
-				int val = src_W[i*N + k] + src_W[k*N + slice];
-				if (val < src_W[i*N + slice]) {
-					dst_W[i*N + slice] = val;
-				} else {
-					dst_W[i*N + slice] = src_W[i*N + slice];
-				}
-			}
-			for (int j = slice; j < N; ++j) {
-				/* Coord = (slice, j) */
-				int val = src_W[slice*N + k] + src_W[k*N + j];
-				if (val < src_W[slice*N + j]) {
-					dst_W[slice*N + j] = val;
-				} else {
-					dst_W[slice*N + j] = src_W[slice*N + j];
-				}
-			}
+// 			/* Now, for each element in the slice */
+// 			for (int i = slice+1; i < N; ++i) {
+// 				/* Coord = (i, slice) */
+// 				int val = src_W[i*N + k] + src_W[k*N + slice];
+// 				if (val < src_W[i*N + slice]) {
+// 					dst_W[i*N + slice] = val;
+// 				} else {
+// 					dst_W[i*N + slice] = src_W[i*N + slice];
+// 				}
+// 			}
+// 			for (int j = slice; j < N; ++j) {
+// 				/* Coord = (slice, j) */
+// 				int val = src_W[slice*N + k] + src_W[k*N + j];
+// 				if (val < src_W[slice*N + j]) {
+// 					dst_W[slice*N + j] = val;
+// 				} else {
+// 					dst_W[slice*N + j] = src_W[slice*N + j];
+// 				}
+// 			}
 
-			/* Notify the next K that a slice was completed  */
-			sem_post(&WS_sem[dst]);
-		}
+// 			/* Notify the next K that a slice was completed  */
+// 			sem_post(&WS_sem[dst]);
+// 		}
 
-		//dump(k, "Finished k=%d at %f:\n", k, elapsed());
-		//dump_buf(k, dst);
-	}
+// 		//dump(k, "Finished k=%d at %f:\n", k, elapsed());
+// 		//dump_buf(k, dst);
+// 	}
 
-	pthread_exit(0);
-}
+// 	pthread_exit(0);
+// }
 
-void floyd_warshall_striped() {
-	//cleardump();
+// void floyd_warshall_striped() {
+// 	//cleardump();
 
-	/* Set up the memory */
-	WS = malloc(N*N*(thread_count+1)*sizeof(int));
-	WS_sem = malloc((thread_count+1)*sizeof(sem_t));
+// 	/* Set up the memory */
+// 	WS = malloc(N*N*(thread_count+1)*sizeof(int));
+// 	WS_sem = malloc((thread_count+1)*sizeof(sem_t));
 
-	/* Move the data into WS initial */
-	memcpy(WS[0], W, N*N*sizeof(int));
+// 	/* Move the data into WS initial */
+// 	memcpy(WS[0], W, N*N*sizeof(int));
 
-	/* Init the semaphores */
-	sem_init(&WS_sem[0], 0, 1); /* Initial value = 1 */
-	for (int i = 1; i < (thread_count+1); ++i) {
-		sem_init(&WS_sem[i], 0, 0); /* Initial value = 0 */
-	}
+// 	/* Init the semaphores */
+// 	sem_init(&WS_sem[0], 0, 1); /* Initial value = 1 */
+// 	for (int i = 1; i < (thread_count+1); ++i) {
+// 		sem_init(&WS_sem[i], 0, 0); /* Initial value = 0 */
+// 	}
 
-	/* Do the work */
-	create_and_join_threads(fw_striped_thread);
+// 	/* Do the work */
+// 	create_and_join_threads(fw_striped_thread);
 
-	/* Move the result into W */
-	int finalDst = N % (thread_count+1);
-	memcpy(W, WS[finalDst], N*N*sizeof(int));
-}
+// 	/* Move the result into W */
+// 	int finalDst = N % (thread_count+1);
+// 	memcpy(W, WS[finalDst], N*N*sizeof(int));
+// }
 
-int async_row_current_k[N];
-pthread_mutex_t async_lock[N];
-pthread_cond_t async_row_completed[N];
+/* Note: The key block is the one that the other blocks
+ * depend on, the one containing the k'th row. */
+int async_key_block_complete[N+1];
+pthread_mutex_t async_lock[N+1];
+pthread_cond_t async_key_block_completed[N+1];
+int (*WA)[N*N];
 
 void *fw_async_thread(void *rank_void) {
 	/* Rank -> Which rows to calculate */
@@ -214,39 +217,39 @@ void *fw_async_thread(void *rank_void) {
 	int i_start = blk_sz*rank;
 
 	for (int k = 0; k < N; ++k) {
+		/* Source and dest of this K step */
+		int *WSrc = WA[k];
+		int *WDst = WA[k+1];
+
+		/* Key row for the next K, to signal after completing */
+		/* (last row of the key block) */
+		const int key_row = (blk_sz*(1 + ((k+1)/blk_sz))) - 1;
+
+		/* Wait on our key row */
+		pthread_mutex_lock(&async_lock[k]);
+		if (!async_key_block_complete[k]) {
+			pthread_cond_wait(&async_key_block_completed[k],
+				&async_lock[k]);
+		}
+		pthread_mutex_unlock(&async_lock[k]);
+
 		/* Do the work for a given K */
 		for (int i = i_start; i < (i_start + blk_sz); ++i) {
 			for (int j = 0; j < N; ++j) {
-				/*
-				 * At this point:
-				 * W^(k-1)(i, k)
-				 *   Must be complete, since this thread is the one
-				 *   calculating i in this range
-				 * W^(k-1)(k, j)
-				 *   Must be complete if k is in our i range.
-				 *   Otherwise, may or may not be complete, in that
-				 *   case, we need to wait on that row's thread's 
-				 *   condition until it is up to speed.
-				 */
-				if (k < i_start || k >= (i_start + blk_sz)) {
-					/* Need to do wait */
-					pthread_mutex_lock(&async_lock[k]);
-					while (async_row_current_k[k] < (k-1)) {
-						pthread_cond_wait(&async_row_completed[k],
-							&async_lock[k]);
-					}
-					pthread_mutex_unlock(&async_lock[k]);
-				}
-				int sum = W[i*N + k] + W[k*N + j];
-				if (sum < W[i*N + j])
-					W[i*N + j] = sum;
+				int sum = WSrc[i*N + k] + WSrc[k*N + j];
+				if (sum < WSrc[i*N + j])
+					WDst[i*N + j] = sum;
+				else
+					WDst[i*N + j] = WSrc[i*N + j];
 			}
 
-			/* Fire row completed */
-			pthread_mutex_lock(&async_lock[i]);
-			async_row_current_k[i] = k;
-			pthread_cond_broadcast(&async_row_completed[i]);
-			pthread_mutex_unlock(&async_lock[i]);
+			/* If this was the key row block, signal next K */
+			if (i == key_row) {
+				pthread_mutex_lock(&async_lock[k+1]);
+				async_key_block_complete[k+1] = 1;
+				pthread_cond_broadcast(&async_key_block_completed[k+1]);
+				pthread_mutex_unlock(&async_lock[k+1]);
+			}
 		}
 	}
 
@@ -258,8 +261,28 @@ void *fw_async_thread(void *rank_void) {
 void floyd_warshall_multi_async() {
 	/* Multi threaded async approach */
 
+	/* Init the locks and conditions */
+	for (int i = 0; i <= N; ++i) { /* <= N deliberate, need N+1 entries */
+		pthread_mutex_init(&async_lock[i], NULL);
+		pthread_cond_init(&async_key_block_completed[i], NULL);
+		async_key_block_complete[i] = 0;
+	}
+
+	/* Initial kick off */
+	async_key_block_complete[0] = 1;
+
+	/* Set up the memory */
+	WA = malloc(N*N*(N+1)*sizeof(int));
+	memcpy(WA[0], W, N*N*sizeof(int));
+
 	/* Start stuff */
 	create_and_join_threads(fw_async_thread);
+
+	/* Move the result into W */
+	memcpy(W, WA[N], N*N*sizeof(int));
+
+	/* Free data */
+	free(WA);
 }
 
 /* Synchronous solution shared values */
@@ -343,7 +366,7 @@ int main(int argc, char *argv[]) {
 	// 	floyd_warshall_single();
 	// } else {
 		if (is_async) {
-			floyd_warshall_striped();
+			floyd_warshall_multi_async();
 		} else {
 			floyd_warshall_multi_sync();
 		}

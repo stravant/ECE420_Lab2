@@ -1,5 +1,4 @@
 
-CC = clang
 CFLAGS += -Wall -Werror -g
 
 CITYCOUNT ?= 128
@@ -21,13 +20,16 @@ test: all
 maintest: all
 	./datagen $(CITYCOUNT)
 	./main 1 0
+	./serialtester
 	./main 2 0
+	./serialtester
 	./main 4 0
-	./main 8 0
+	./serialtester
 	./main 1 1
+	./serialtester
 	./main 2 1
+	./serialtester
 	./main 4 1
-	./main 8 1
 	./serialtester
 
 fixtest: all
